@@ -1,0 +1,9 @@
+
+
+
+<li class="todo-list-item {{ if .Completed }} completed {{ end }}">
+	<input class="" type="text" {{ if .Completed }} checked {{ end }}>
+	<label class="todo-label">{{ .Title }}</label>
+	<button class="destroy"></button>
+	<input class="edit" onfocus="this.value = this.value;" value="{{ .Title }}">
+</li>

@@ -13,9 +13,11 @@ type State struct {
 }
 
 func (state State) Render() Node {
+	ss := StringState("value", state.value, state.onInputChange)
+
 	return Div(
-		Div(Input(OnChange(StateInput("value", state.onInputChange)))),
-		Div(StateOutput("value", state.value)),
+		Div(Input(OnChange(ss.Callback))),
+		Div(ss.Value),
 	)
 }
 
