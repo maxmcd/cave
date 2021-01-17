@@ -2,6 +2,7 @@ package cave
 
 import (
 	"bytes"
+	"encoding/json"
 	"reflect"
 
 	"golang.org/x/net/html"
@@ -10,8 +11,7 @@ import (
 type PatchType uint8
 
 const (
-	PatchTypeNone PatchType = iota
-	PatchTypeInsert
+	PatchTypeInsert PatchType = iota
 	PatchTypeRemove
 	PatchTypeAttributes
 	PatchTypeText
@@ -19,11 +19,38 @@ const (
 )
 
 type Patch struct {
-	pt         PatchType
-	data       string
-	attributes []Attribute
+	Type       PatchType     `json:"t"`
+	Data       string        `json:"d,omitempty"`
+	Attributes AttributeList `json:"a,omitempty"`
+	Index      int           `json:"i"`
 	node       *html.Node
-	index      int
+}
+
+type AttributeList []Attribute
+
+func (a AttributeList) MarshalJSON() ([]byte, error) {
+	out := [][]string{}
+	for _, at := range a {
+		out = append(out, []string{at.Key, at.Val})
+	}
+	return json.Marshal(out)
+}
+
+func (p *Patch) UnmarshalJSON(data []byte) error {
+	type Tmp Patch
+	tmp := &struct {
+		Attr [][]string `json:"a"`
+		*Tmp
+	}{
+		Tmp: (*Tmp)(p),
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	for _, tuple := range tmp.Attr {
+		p.Attributes = append(p.Attributes, Attribute{Key: tuple[0], Val: tuple[1]})
+	}
+	return nil
 }
 
 type Attribute struct {
@@ -39,16 +66,15 @@ func apply(a *html.Node, patches []Patch, index int) (int, []Patch) {
 	if len(patches) == 0 {
 		return index, nil
 	}
-
 	patch := patches[0]
-	if patch.index == index {
+	if patch.Index == index {
 		patches = patches[1:]
-		switch patch.pt {
+		switch patch.Type {
 		case PatchTypeRemove:
 			a.Parent.RemoveChild(a)
 		case PatchTypeAttributes:
 			a.Attr = []html.Attribute{}
-			for _, attr := range patch.attributes {
+			for _, attr := range patch.Attributes {
 				a.Attr = append(a.Attr, html.Attribute{
 					Key:       attr.Key,
 					Val:       attr.Val,
@@ -56,10 +82,10 @@ func apply(a *html.Node, patches []Patch, index int) (int, []Patch) {
 				})
 			}
 		case PatchTypeText:
-			a.Data = patch.data
+			a.Data = patch.Data
 		case PatchTypeElement:
 			a.Type = html.RawNode
-			a.Data = patch.data
+			a.Data = patch.Data
 			a.FirstChild = nil
 			a.LastChild = nil
 		}
@@ -69,8 +95,8 @@ func apply(a *html.Node, patches []Patch, index int) (int, []Patch) {
 		return 0, nil
 	}
 	patch = patches[0]
-	if patch.pt == PatchTypeInsert && index+1 == patch.index {
-		a.Parent.AppendChild(&html.Node{Type: html.RawNode, Data: patch.data})
+	if patch.Type == PatchTypeInsert && index+1 == patch.Index {
+		a.Parent.AppendChild(&html.Node{Type: html.RawNode, Data: patch.Data})
 		patches = patches[1:]
 	}
 
@@ -92,7 +118,7 @@ func Diff(a *html.Node, b *html.Node) ([]Patch, error) {
 		if err := html.Render(&buf, patch.node); err != nil {
 			return nil, err
 		}
-		patches[i].data = buf.String()
+		patches[i].Data = buf.String()
 		patches[i].node = nil
 		buf.Reset()
 	}
@@ -112,25 +138,25 @@ func walk(a *html.Node, b *html.Node, index int) ([]Patch, int) {
 		return nil, index
 	}
 	if a == nil {
-		return []Patch{{pt: PatchTypeInsert, node: b, index: index}}, index
+		return []Patch{{Type: PatchTypeInsert, node: b, Index: index}}, index
 	}
 	if b == nil {
-		return []Patch{{pt: PatchTypeRemove, index: index}}, index
+		return []Patch{{Type: PatchTypeRemove, Index: index}}, index
 	}
 	if a.Type == html.ElementNode && b.Type == html.ElementNode {
 		if a.Data == b.Data {
 			// we're all equal, check prop inequality
 			if !reflect.DeepEqual(a.Attr, b.Attr) {
-				return []Patch{{pt: PatchTypeAttributes, attributes: attributesToAttributes(b.Attr), index: index}}, index
+				return []Patch{{Type: PatchTypeAttributes, Attributes: attributesToAttributes(b.Attr), Index: index}}, index
 			}
 		} else {
 			// different tag name, replace whole node
-			return []Patch{{pt: PatchTypeElement, node: b, index: index}}, index
+			return []Patch{{Type: PatchTypeElement, node: b, Index: index}}, index
 		}
 	}
 	if a.Type == html.TextNode && b.Type == html.TextNode {
 		if a.Data != b.Data {
-			return []Patch{{pt: PatchTypeText, data: b.Data, index: index}}, index
+			return []Patch{{Type: PatchTypeText, Data: b.Data, Index: index}}, index
 		}
 	}
 	patches := []Patch{}

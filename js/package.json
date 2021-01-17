@@ -4,14 +4,21 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "karma start --single-run --browsers ChromeHeadless karma.conf.js"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "html-to-vdom": "^0.7.0",
-    "morphdom": "^2.6.1",
-    "vdom-virtualize": "^2.0.0",
-    "virtual-dom": "^2.1.1"
+    "morphdom": "^2.6.1"
+  },
+  "devDependencies": {
+    "browserify": "^17.0.0",
+    "chai": "^4.2.0",
+    "karma": "^6.0.0",
+    "karma-browserify": "^8.0.0",
+    "karma-chai": "^0.1.0",
+    "karma-chrome-launcher": "^3.1.0",
+    "karma-mocha": "^2.0.1",
+    "mocha": "^8.2.1"
   }
 }

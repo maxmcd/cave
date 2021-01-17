@@ -1,18 +1,53 @@
-const diff = require("virtual-dom/diff");
-const patch = require("virtual-dom/patch");
-const vdomVirtualize = require("vdom-virtualize");
+const PATCH_TYPE_INSERT = 0;
+const PATCH_TYPE_REMOVE = 1;
+const PATCH_TYPE_ATTRIBUTES = 2;
+const PATCH_TYPE_TEXT = 3;
+const PATCH_TYPE_ELEMENT = 4;
+const _apply = (node, patches, index) => {
+  console.log(patches, index);
+  if (patches.length == 0) {
+    return [0, null];
+  }
+  patch = patches[0];
+  if (patch.i === index) {
+    patches = patches.slice(1);
+    if (patch.t === PATCH_TYPE_REMOVE) {
+      node.parentNode.removeChild(node);
+    } else if (patch.t == PATCH_TYPE_ATTRIBUTES) {
+      while (node.attributes.length > 0)
+        node.removeAttribute(node.attributes[0].name);
+      for (let i = 0; i < patch.a.length; i++) {
+        const attr = patch.a[i];
+        node.setAttribute(attr[0], attr[1]);
+      }
+    } else if (patch.t === PATCH_TYPE_TEXT) {
+      console.log(patch.d, node);
+      node.data = patch.d;
+    } else if (patch.t === PATCH_TYPE_ELEMENT) {
+      node.replaceWith(stringToNode(patch.d));
+    }
+  }
+  if (patches.length == 0) {
+    return [0, null];
+  }
+  patch = patches[0];
+  if (patch.t === PATCH_TYPE_INSERT && index + 1 === patch.i) {
+    node.parentNode.appendChild(stringToNode(patch.d));
+    patches = patches.slice(1);
+  }
+  for (let i = 0; i < node.childNodes.length; i++) {
+    const child = node.childNodes[i];
+    [index, patches] = _apply(child, patches, index + 1);
+  }
+  return [index, patches];
+};
+const apply = (node, patches) => {
+  _apply(node, patches, 0);
+};
 
-var VNode = require("virtual-dom/vnode/vnode");
-var VText = require("virtual-dom/vnode/vtext");
+const stringToNode = (input) => {
+  let doc = new DOMParser().parseFromString(input, "text/html");
+  return doc.body.firstChild;
+};
 
-var convertHTML = require("html-to-vdom")({
-  VNode: VNode,
-  VText: VText,
-});
-var html = "<div>Hello</div>";
-var html2 = "<div>World</div><div>Hello</div>";
-var vtree = convertHTML(html);
-var vtree2 = convertHTML(html2);
-
-let thing = diff(vtree2, vtree);
-console.log(thing);
+module.exports = { apply: apply };
