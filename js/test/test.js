@@ -1,5 +1,5 @@
 const morphdom = require("morphdom");
-const cave = require("../index");
+const cave = require("../src/");
 // import morphdom from "morphdom";
 describe("Array", () => {
   describe("#indexOf()", () => {
@@ -55,11 +55,15 @@ describe("Array", () => {
         const data = testCases[i];
         document.querySelector("body").innerHTML = data[0];
         let node = document.querySelector("body").cloneNode(true);
-        cave.apply(node, data[2]);
+        node;
+
+        cave.apply(
+          node,
+          data[2].map((p) => cave.expandPatch(p))
+        );
         morphdom(document.querySelector("body"), node);
         document.querySelector("body").innerHTML.should.equal(data[1]);
       }
-      console.log(document.querySelector("body"));
     });
   });
 });

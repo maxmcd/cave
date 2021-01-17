@@ -62,9 +62,9 @@ type Attribute struct {
 func Apply(a *html.Node, patches []Patch) {
 	_, _ = apply(a, patches, 0)
 }
-func apply(a *html.Node, patches []Patch, index int) (int, []Patch) {
+func apply(a *html.Node, patches []Patch, index int) ([]Patch, int) {
 	if len(patches) == 0 {
-		return index, nil
+		return nil, index
 	}
 	patch := patches[0]
 	if patch.Index == index {
@@ -92,7 +92,7 @@ func apply(a *html.Node, patches []Patch, index int) (int, []Patch) {
 	}
 
 	if len(patches) == 0 {
-		return 0, nil
+		return nil, 0
 	}
 	patch = patches[0]
 	if patch.Type == PatchTypeInsert && index+1 == patch.Index {
@@ -102,10 +102,10 @@ func apply(a *html.Node, patches []Patch, index int) (int, []Patch) {
 
 	aChild := a.FirstChild
 	for aChild != nil {
-		index, patches = apply(aChild, patches, index+1)
+		patches, index = apply(aChild, patches, index+1)
 		aChild = aChild.NextSibling
 	}
-	return index, patches
+	return patches, index
 }
 
 func Diff(a *html.Node, b *html.Node) ([]Patch, error) {
