@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "karma start --single-run --browsers ChromeHeadless karma.conf.js"
+    "test": "karma start --single-run --browsers ChromeHeadless karma.conf.ts"
   },
   "author": "",
   "license": "MIT",
@@ -12,6 +12,8 @@
     "morphdom": "^2.6.1"
   },
   "devDependencies": {
+    "@types/chai": "^4.2.14",
+    "@types/mocha": "^8.2.0",
     "browserify": "^17.0.0",
     "chai": "^4.2.0",
     "karma": "^6.0.0",

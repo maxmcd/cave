@@ -13,10 +13,10 @@ interface Patch {
   type: number;
 }
 
-interface PatchOnTheWire {
-  d: string;
+export interface PatchOnTheWire {
+  d?: string;
   i: number;
-  a: Array<Array<string>>;
+  a?: Array<Array<string>>;
   t: number;
 }
 
@@ -29,7 +29,7 @@ const expandPatch = (p: PatchOnTheWire): Patch => {
   };
 };
 
-const apply = (node: HTMLElement, patches: Array<Patch>): void => {
+const apply = (node: any, patches: Array<Patch>): void => {
   _apply(node, patches, 0);
 };
 
@@ -81,4 +81,4 @@ const stringToNode = (input: string): ChildNode => {
   return doc.body.firstChild;
 };
 
-module.exports = { apply, expandPatch };
+export default { apply, expandPatch };
