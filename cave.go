@@ -3,30 +3,41 @@ package cave
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
+	"net/http"
+	"strings"
 	"text/template"
+	"time"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/gorilla/websocket"
 )
 
 type OnSubmiter interface {
-	OnSubmit(name string, form Form)
+	OnSubmit(name string, form map[string]string)
 }
 
 type Renderer interface {
 	Render() string
 }
 
+// MAYBE
+type OnMounter interface {
+	OnMount(req *http.Request)
+}
+
 type Form struct{}
 
 func Render(renderer Renderer, w io.Writer) error {
-	// TODO: inject javascript!
 	t := template.New("").Funcs(template.FuncMap{
 		"add":    add,
 		"render": render,
 	})
-	_, err := t.Parse(renderer.Render())
+	// trimspace is important here, otherwise we could have errant Text nodes
+	// in the browser screwing up the patch index
+	_, err := t.Parse(strings.TrimSpace(renderer.Render()))
 	if err != nil {
 		return err
 	}
@@ -45,25 +56,41 @@ func render(i interface{}) (interface{}, error) {
 	return buf.String(), nil
 }
 
-type RenderContext struct {
-	template      *template.Template
-	websocketPath string
+type Cave struct {
+	template *template.Template
+	registry map[string]RendererFunc
 }
 
-func (rc *RenderContext) SetWebsocketPath(relativePath string) {
-	rc.websocketPath = relativePath
+func New() *Cave {
+	rand.Seed(time.Now().UnixNano())
+	return &Cave{}
 }
 
-func (rc *RenderContext) SetTemplateFile(filePath string) error {
-	if rc.template != nil {
-		return errors.New("can't add a template file twice")
+func (rc *Cave) component(name string) (interface{}, error) {
+	cmp, ok := rc.registry[name]
+	if !ok {
+		return nil, fmt.Errorf("component with name %q doesn't exist in the registry", name)
 	}
-	rc.template = template.New("")
+	var buf bytes.Buffer
 
-	// provide an empty yield function to satisfy the template.Parse
-	rc.template.Funcs(template.FuncMap{
-		"yield": func() (interface{}, error) { return nil, nil },
-	})
+	// this is a bit ad-hoc. liveview has lots of metadata here. think on this
+	fmt.Fprintf(&buf, "<div cave-component=\"%s-%d\">", name, rand.Uint64())
+	if err := Render(cmp(), &buf); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(&buf, "</div>")
+	return buf.String(), nil
+}
+
+func (rc *Cave) AddTemplateFile(name, filePath string) error {
+	if rc.template == nil {
+		rc.template = template.New(name)
+		rc.template.Funcs(template.FuncMap{
+			"component": rc.component,
+		})
+	} else {
+		rc.template.New(name)
+	}
 	contents, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -74,21 +101,43 @@ func (rc *RenderContext) SetTemplateFile(filePath string) error {
 	return nil
 }
 
-func (rc *RenderContext) Render(renderer Renderer, w io.Writer) error {
-	yield := func() (interface{}, error) {
-		// TODO, cannot call yield more than once
-		var buf bytes.Buffer
-		if err := Render(renderer, &buf); err != nil {
-			return nil, err
-		}
-		return buf.String(), nil
+type RendererFunc func() Renderer
+
+func (rc *Cave) AddComponent(name string, rf RendererFunc) {
+	if rc.registry == nil {
+		rc.registry = map[string]RendererFunc{}
 	}
-	rc.template.Funcs(template.FuncMap{
-		"yield": yield,
-	})
+	rc.registry[name] = rf
+}
+
+func (rc *Cave) Render(w io.Writer) error {
 	if err := rc.template.Execute(w, nil); err != nil {
-		spew.Dump(err)
 		return err
 	}
 	return nil
+}
+
+func (cave *Cave) ServeJS(w http.ResponseWriter, req *http.Request) {
+	w.Header().Add("Content-Encoding", "gzip")
+	w.Header().Add("Content-Type", "application/javascript")
+	if strings.HasSuffix(req.URL.Path, ".map") {
+		fmt.Fprint(w, bundle_js_map)
+	} else {
+		fmt.Fprint(w, bundle_js)
+	}
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
+func (cave *Cave) ServeWS(w http.ResponseWriter, req *http.Request) {
+	conn, err := upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	wss := &websocketSession{cave: cave, req: req, conn: conn}
+	wss.handleMessages()
 }

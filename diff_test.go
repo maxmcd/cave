@@ -15,15 +15,6 @@ import (
 // 	spew.Dump(walk(mustParse("<div><div></div></div>"), mustParse("<div></div>"), 0))
 // }
 
-func mustParse(input string) *html.Node {
-	node, err := html.Parse(bytes.NewBuffer([]byte(input)))
-	if err != nil {
-		panic(err)
-	}
-	// it goes <html><head></head><body>, so just return the body
-	return node.FirstChild.FirstChild.NextSibling
-}
-
 func TestMarshal(t *testing.T) {
 	patches := []Patch{{
 		Type: PatchTypeAttributes,
@@ -59,6 +50,53 @@ func Test_Diff(t *testing.T) {
 		b           string
 		wantPatches []Patch
 	}{
+		{
+			name: "todo",
+			b: `<div>
+			<h3>TODO</h3>
+
+			<ul>
+
+				 <li>breathe</li>
+
+				 <li>and sleep</li>
+
+			</ul>
+
+			<form cave-submit=todo>
+			  <label for="new-todo">
+				What needs to be done?
+			  </label>
+			  <input
+				id="new-todo"
+			  />
+			  <button>
+				Add 3
+			  </button>
+			</form>
+		  </div>`,
+			a: `<div>
+		  <h3>TODO</h3>
+
+		  <ul>
+
+			   <li>breathe</li>
+
+		  </ul>
+
+		  <form cave-submit=todo>
+			<label for="new-todo">
+			  What needs to be done?
+			</label>
+			<input
+			  id="new-todo"
+			/>
+			<button>
+			  Add 2
+			</button>
+		  </form>
+		</div>`,
+		},
 		{
 			name:        "add div",
 			a:           "<div></div>",

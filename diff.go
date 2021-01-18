@@ -3,7 +3,9 @@ package cave
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
+	"strings"
 
 	"golang.org/x/net/html"
 )
@@ -108,6 +110,35 @@ func apply(a *html.Node, patches []Patch, index int) ([]Patch, int) {
 	return patches, index
 }
 
+func prettyNode(a *html.Node) string {
+	var buf bytes.Buffer
+	switch a.Type {
+	case html.TextNode:
+		return fmt.Sprintf("text: %q", a.Data)
+	case html.ElementNode:
+		return fmt.Sprintf("element: %s %s", a.Data, a.Attr)
+	default:
+		html.Render(&buf, a)
+		return "unknown: " + buf.String()
+	}
+}
+
+func printNode(a *html.Node, level int) {
+	fmt.Println(strings.Repeat("\t", level), prettyNode(a))
+	for _, child := range nodeChildren(a) {
+		printNode(child, level+1)
+	}
+}
+
+func nodeChildren(a *html.Node) (children []*html.Node) {
+	child := a.FirstChild
+	for child != nil {
+		children = append(children, child)
+		child = child.NextSibling
+	}
+	return
+}
+
 func Diff(a *html.Node, b *html.Node) ([]Patch, error) {
 	patches, _ := walk(a, b, 0)
 	var buf bytes.Buffer
@@ -131,6 +162,15 @@ func attributesToAttributes(a []html.Attribute) []Attribute {
 		out = append(out, Attribute{Key: attr.Key, Val: attr.Val})
 	}
 	return out
+}
+
+func mustParse(input string) *html.Node {
+	node, err := html.Parse(bytes.NewBuffer([]byte(input)))
+	if err != nil {
+		panic(err)
+	}
+	// it goes <html><head></head><body>, so just return the body
+	return node.FirstChild.FirstChild.NextSibling
 }
 
 func walk(a *html.Node, b *html.Node, index int) ([]Patch, int) {

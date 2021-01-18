@@ -4,11 +4,12 @@
     "module": "commonjs",
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "strictNullChecks": true,
     "experimentalDecorators": true,
     "target": "es5",
     "jsx": "react",
     "lib": ["dom", "es6"]
   },
-  "include": ["src", "test"],
+  "include": ["src", "test", "index.ts"],
   "compileOnSave": false
 }

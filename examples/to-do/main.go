@@ -5,17 +5,34 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/maxmcd/cave"
-	cavegin "github.com/maxmcd/cave/cave-gin"
 )
 
 func main() {
 	r := gin.Default()
-	handlerContext := cavegin.New()
-	if err := handlerContext.SetTemplateFile("layout.html"); err != nil {
+	cavern := cave.New()
+	if err := cavern.AddTemplateFile("main", "layout.html"); err != nil {
 		log.Fatal(err)
 	}
-	// handlerContext.
-	r.GET("/", handlerContext.Handler(NewToDoApp))
+	cavern.AddComponent("main", NewToDoApp)
+	r.Use(func(c *gin.Context) {
+		_, ok := c.Request.URL.Query()["cavews"]
+		if ok {
+			cavern.ServeWS(c.Writer, c.Request)
+			c.Abort()
+		}
+	})
+	r.GET("/", func(c *gin.Context) {
+		c.Writer.Header().Add("Content-Type", "text/html")
+		if err := cavern.Render(c.Writer); err != nil {
+			panic(err)
+		}
+	})
+	r.GET("/bundle.js", func(c *gin.Context) {
+		cavern.ServeJS(c.Writer, c.Request)
+	})
+	r.GET("/bundle.js.map", func(c *gin.Context) {
+		cavern.ServeJS(c.Writer, c.Request)
+	})
 	log.Fatal(r.Run())
 }
 
@@ -37,8 +54,10 @@ var (
 	_ cave.Renderer   = new(ToDoApp)
 )
 
-func (tda *ToDoApp) OnSubmit(name string, form cave.Form) {
-
+func (tda *ToDoApp) OnSubmit(name string, form map[string]string) {
+	if name == "todo" {
+		tda.Items = append(tda.Items, form["new"])
+	}
 }
 func (tda *ToDoApp) Render() string {
 	return `
@@ -49,9 +68,7 @@ func (tda *ToDoApp) Render() string {
 	  <label for="new-todo">
 		What needs to be done?
 	  </label>
-	  <input
-		id="new-todo"
-	  />
+	  <input type="text" name="new" />
 	  <button>
 		Add {{ len .Items | add 1 }}
 	  </button>
@@ -64,6 +81,8 @@ type ToDoList struct {
 	ToDoApp *ToDoApp
 }
 
+var _ cave.Renderer = new(ToDoList)
+
 func (tdl *ToDoList) Render() string {
 	return `
 	<ul>
@@ -73,5 +92,3 @@ func (tdl *ToDoList) Render() string {
 	</ul>
 `
 }
-
-var _ cave.Renderer = new(ToDoList)
