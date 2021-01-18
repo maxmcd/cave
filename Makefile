@@ -12,3 +12,13 @@ run_to_do_example: generate
 .PHONY: generate
 generate: ./cave-js/bundle.js ./cmd/include-bundle/main.go
 	cd cmd/include-bundle && go run .
+
+
+demos_build:
+	cd cmd/cave-demos && docker build -f ./Dockerfile ../../ -t maxmcd/cave:demos
+
+demos_push: demos_build
+	docker push maxmcd/cave:demos
+
+demos_deploy: demos_push
+	cd cmd/cave-demos && fly deploy -v

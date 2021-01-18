@@ -32,6 +32,8 @@ You can't do much with this component in its current form, but this is one of ou
 
 Here's the cave version of a ToDo list app. It has a form input and adds items to the list when the form is submitted.
 
+*If you just want to play around with the final result you [can try it out here](https://cave-demo.fly.dev/). The full source is also [here](./examples/to-do).*
+
 ```go
 type ToDoApp struct {
 	Items    []string
@@ -99,6 +101,19 @@ if err := cavern.AddTemplateFile("main", "layout.html"); err != nil {
 }
 cavern.AddComponent("main", NewToDoApp)
 ```
+
+`AddComponent` takes a `func() cave.Renderer` so that it can create a new component for every request. So we'll need to set up that function as well.
+
+```go
+func NewToDoApp() cave.Renderer {
+	tda := &ToDoApp{Items: []string{"breathe"}}
+	tld := &ToDoList{}
+	tda.ToDoList = tld
+	tld.ToDoApp = tda
+	return tda
+}
+```
+
 Layouts are html pages that render the html boilerplate we'll need outside of our components. A minimal example would be this:
 ```html
 <!doctype html>
