@@ -110,8 +110,8 @@ func (rc *Cave) AddComponent(name string, rf RendererFunc) {
 	rc.registry[name] = rf
 }
 
-func (rc *Cave) Render(w io.Writer) error {
-	if err := rc.template.Execute(w, nil); err != nil {
+func (rc *Cave) Render(layout string, w io.Writer) error {
+	if err := rc.template.ExecuteTemplate(w, layout, nil); err != nil {
 		return err
 	}
 	return nil

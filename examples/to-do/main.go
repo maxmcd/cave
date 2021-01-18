@@ -14,6 +14,7 @@ func main() {
 		log.Fatal(err)
 	}
 	cavern.AddComponent("main", NewToDoApp)
+
 	r.Use(func(c *gin.Context) {
 		_, ok := c.Request.URL.Query()["cavews"]
 		if ok {
@@ -23,7 +24,7 @@ func main() {
 	})
 	r.GET("/", func(c *gin.Context) {
 		c.Writer.Header().Add("Content-Type", "text/html")
-		if err := cavern.Render(c.Writer); err != nil {
+		if err := cavern.Render("main", c.Writer); err != nil {
 			panic(err)
 		}
 	})
