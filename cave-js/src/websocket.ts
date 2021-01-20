@@ -31,12 +31,13 @@ export class WebsocketHandler {
       }
     }
     this.websocket.send(
-      new ClientMessage("", MessageType.Init, "", componentIDs).serialize()
+      new ClientMessage(MessageType.Init, componentIDs).serialize()
     );
   }
   onmessage(e: MessageEvent): any {
     console.log(e.data);
     let msg = new ServerMessage(JSON.parse(e.data));
+    console.log(msg)
     if (msg.event === MessageType.Patch) {
       let patches: Array<Patch> = msg.data.map((e) => diff.expandPatch(e));
       // is this what we want? is cloning expensive here?

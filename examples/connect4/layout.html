@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Connect4</title>
+        <style>
+            .board {
+                width: 700px;
+                height: 600px;
+                background-color: blue;
+                display: flex;
+                padding: 5px;
+            }
+            .column {
+                display: flex;
+                flex-direction: column;
+            }
+            .circle {
+                width: 90px;
+                height: 90px;
+                border-radius: 50px;
+                background-color:white;
+                margin: 5px;
+            }
+            .red.circle {
+                background-color: red;
+            }
+            .black.circle {
+                background-color: black;
+            }
+        </style>
+    </head>
+    <body>
+        {{ component "main" }}
+        <script src="/bundle.js" type="application/javascript"></script>
+    </body>
+</html>

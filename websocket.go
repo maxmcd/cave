@@ -5,14 +5,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"reflect"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/maxmcd/cave/internal/messages"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/html"
+)
+
+var (
+	// Time allowed to write a message to the peer.
+	writeWait = 10 * time.Second
+
+	// Time allowed to read the next pong message from the peer.
+	pongWait = 60 * time.Second
 )
 
 type websocketSession struct {
@@ -24,58 +36,143 @@ type websocketSession struct {
 	components map[string]*liveComponent
 }
 
+type componentRenderer struct {
+	r  Renderer
+	id int
+}
+
 type liveComponent struct {
 	renderer Renderer
 	tree     *html.Node
+
+	// need to check if we've seen the subcomponent before
+	// need to take an action from a server and direct it to the right subcomponent
+	// need to select an existing index for rendering
+	subcomponents map[uintptr]componentRenderer
+	counter       int
 }
 
-func newLiveState(r Renderer) *liveComponent {
-	ls := liveComponent{renderer: r}
+func (lc *liveComponent) render(renderer Renderer, w io.Writer) error {
+	t := template.New("").Funcs(template.FuncMap{
+		"add":    add,
+		"render": lc.renderFn,
+	})
+	// trimspace is important here, otherwise we could have errant Text nodes
+	// in the browser screwing up the patch index
+	if _, err := t.Parse(strings.TrimSpace(renderer.Render())); err != nil {
+		return err
+	}
+	return t.Execute(w, renderer)
+}
+func (lc *liveComponent) renderFn(i interface{}) (interface{}, error) {
+	renderer, ok := i.(Renderer)
+	if !ok {
+		return nil, errors.New("cannot render a type that does not implement cave.Renderer")
+	}
+	var buf strings.Builder
+
+	// check if we already have a renderer with this memory address
+	subcomponentAddr := reflect.ValueOf(renderer).Pointer()
+	var cr componentRenderer
+	cr, ok = lc.subcomponents[subcomponentAddr]
+	if !ok {
+		// if we don't, assign them an id and store them
+		cr = componentRenderer{
+			r:  renderer,
+			id: lc.counter,
+		}
+		lc.subcomponents[subcomponentAddr] = cr
+		lc.counter++
+		// TODO: consider finalizer?
+	}
+	buf.WriteString(fmt.Sprintf("<div cave-subcomponent=\"%d\">", cr.id))
+	if err := lc.render(renderer, &buf); err != nil {
+		return nil, err
+	}
+	buf.WriteString("</div>")
+	return buf.String(), nil
+}
+
+func renderOnce(r Renderer, w io.Writer) error {
+	lc := liveComponent{
+		renderer:      r,
+		subcomponents: map[uintptr]componentRenderer{},
+	}
+	return lc.render(r, w)
+}
+
+func newLiveComponent(r Renderer) (*liveComponent, error) {
+	ls := liveComponent{
+		renderer:      r,
+		subcomponents: map[uintptr]componentRenderer{},
+	}
 	var buf bytes.Buffer
-	Render(r, &buf)
-	ls.tree = mustParse(buf.String())
+	if err := ls.render(r, &buf); err != nil {
+		return nil, err
+	}
+	node, err := parseHTMLToNode(buf.String())
+	if err != nil {
+		return nil, err
+	}
+	ls.tree = node
 	// printNode(ls.tree, 0)
-	return &ls
+	return &ls, nil
 }
 
-func (ls *liveComponent) diff() ([]Patch, error) {
-	old := ls.tree
+func (lc *liveComponent) diff() ([]Patch, error) {
+	old := lc.tree
 	var buf bytes.Buffer
-	Render(ls.renderer, &buf)
-	ls.tree = mustParse(buf.String())
+	var err error
+	if err = lc.render(lc.renderer, &buf); err != nil {
+		return nil, err
+	}
+	lc.tree, err = parseHTMLToNode(buf.String())
+	if err != nil {
+		return nil, err
+	}
 	// printNode(ls.tree, 0)
-	return Diff(old, ls.tree)
+	return Diff(old, lc.tree)
 }
-
-type EventType string
-
-const (
-	EventTypePatch  EventType = "p"
-	EventTypeSubmit EventType = "submit"
-)
 
 func (wss *websocketSession) sendError(err error) {
 	if err == nil {
 		return
 	}
-	msg, _ := messages.NewServerMessage("", string(messages.ServerTypeError), []string{err.Error()})
-	_ = wss.conn.WriteJSON(msg)
+	msg := messages.ServerMessage{Type: messages.ServerTypeError, Data: []string{err.Error()}}
+	b, err := msg.Serialize()
+	if err != nil {
+		// TODO
+		panic(err)
+	}
+
+	// TODO: confirm this error is likely just a broken conn and nothing more we should be worried about
+	_ = wss.conn.WriteMessage(websocket.TextMessage, b)
 }
 
 func (wss *websocketSession) handleMessages() {
-	for {
-		_, msg, err := wss.conn.ReadMessage()
-		if err != nil {
-			if _, ok := err.(*websocket.CloseError); ok {
-				return
+	_ = wss.conn.SetReadDeadline(time.Now().Add(pongWait))
+	wss.conn.SetPongHandler(func(string) error { _ = wss.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	go func() {
+		for {
+			_, msg, err := wss.conn.ReadMessage()
+			if err != nil {
+				if _, ok := err.(*websocket.CloseError); ok {
+					return
+				}
+				// TODO
+				panic(err)
 			}
-			// TODO
-			panic(err)
+			var jsonMsg messages.ClientMessage
+			_ = json.Unmarshal(msg, &jsonMsg)
+			if err := wss.handleClientMessage(jsonMsg); err != nil {
+				wss.sendError(err)
+			}
 		}
-		var jsonMsg messages.ClientMessage
-		_ = json.Unmarshal(msg, &jsonMsg)
-		if err := wss.handleClientMessage(jsonMsg); err != nil {
-			wss.sendError(err)
+	}()
+	ticker := time.NewTicker(time.Second * 30)
+	for range ticker.C {
+		_ = wss.conn.SetWriteDeadline(time.Now().Add(writeWait))
+		if err := wss.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 			return
 		}
 	}
@@ -83,10 +180,10 @@ func (wss *websocketSession) handleMessages() {
 
 func (wss *websocketSession) handleClientMessage(msg messages.ClientMessage) error {
 	spew.Dump(msg)
-	switch msg.EventType() {
+	switch msg.Type {
 	case messages.ClientTypeInit:
 		var componentIDs []string
-		if err := msg.UnmarshalBody(&componentIDs); err != nil {
+		if err := json.Unmarshal(msg.Data, &componentIDs); err != nil {
 			return err
 		}
 		if wss.components != nil {
@@ -104,7 +201,11 @@ func (wss *websocketSession) handleClientMessage(msg messages.ClientMessage) err
 				return fmt.Errorf("component %q is not in the registry", componentName)
 			}
 			renderer := rendererFunc()
-			wss.components[componentID] = newLiveState(renderer)
+			var err error
+			wss.components[componentID], err = newLiveComponent(renderer)
+			if err != nil {
+				return err
+			}
 			onmounter, ok := renderer.(OnMounter)
 			if ok {
 				onmounter.OnMount(wss.req)
@@ -113,15 +214,15 @@ func (wss *websocketSession) handleClientMessage(msg messages.ClientMessage) err
 		}
 	case messages.ClientTypeSubmit:
 		var data []map[string]string
-		if err := msg.UnmarshalBody(&data); err != nil {
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
 			return err
 		}
-		ls, ok := wss.components[msg.ComponentID()]
+		ls, ok := wss.components[msg.ComponentID]
 		if ok {
 			fmt.Println(data)
-			ls.renderer.(OnSubmiter).OnSubmit(msg.Name(), data[0])
+			ls.renderer.(OnSubmiter).OnSubmit(msg.Name, data[0])
 		}
-		return wss.reRenderComponent(msg.ComponentID())
+		return wss.reRenderComponent(msg.ComponentID)
 	}
 	return nil
 }
@@ -136,12 +237,17 @@ func (wss *websocketSession) reRenderComponent(componentID string) error {
 		return err
 	}
 	if len(diff) == 0 {
+		// nothing to do
 		return nil
 	}
-	out, _ := messages.NewServerMessage(
-		componentID,
-		string(messages.ServerTypePatch),
-		diff,
-	)
-	return wss.conn.WriteJSON(out)
+	msg := messages.ServerMessage{
+		ComponentID: componentID,
+		Type:        messages.ServerTypePatch,
+		Data:        diff,
+	}
+	b, err := msg.Serialize()
+	if err != nil {
+		return err
+	}
+	return wss.conn.WriteMessage(websocket.TextMessage, b)
 }

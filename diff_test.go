@@ -51,53 +51,6 @@ func Test_Diff(t *testing.T) {
 		wantPatches []Patch
 	}{
 		{
-			name: "todo",
-			b: `<div>
-			<h3>TODO</h3>
-
-			<ul>
-
-				 <li>breathe</li>
-
-				 <li>and sleep</li>
-
-			</ul>
-
-			<form cave-submit=todo>
-			  <label for="new-todo">
-				What needs to be done?
-			  </label>
-			  <input
-				id="new-todo"
-			  />
-			  <button>
-				Add 3
-			  </button>
-			</form>
-		  </div>`,
-			a: `<div>
-		  <h3>TODO</h3>
-
-		  <ul>
-
-			   <li>breathe</li>
-
-		  </ul>
-
-		  <form cave-submit=todo>
-			<label for="new-todo">
-			  What needs to be done?
-			</label>
-			<input
-			  id="new-todo"
-			/>
-			<button>
-			  Add 2
-			</button>
-		  </form>
-		</div>`,
-		},
-		{
 			name:        "add div",
 			a:           "<div></div>",
 			b:           "<div></div><div></div>",
@@ -159,15 +112,22 @@ func Test_Diff(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := mustParse(tt.a)
-			gotPatches, err := Diff(a, mustParse(tt.b))
+			a, err := parseHTMLToNode(tt.a)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := parseHTMLToNode(tt.b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			gotPatches, err := Diff(a, b)
 			if err != nil {
 				t.Error(err)
 			}
 			fmt.Println(tt.a)
 			fmt.Println(tt.b)
-			b, _ := json.Marshal(tt.wantPatches)
-			fmt.Println(string(b))
+			byt, _ := json.Marshal(tt.wantPatches)
+			fmt.Println(string(byt))
 			if tt.wantPatches != nil && !reflect.DeepEqual(gotPatches, tt.wantPatches) {
 				t.Errorf("Diff() = %s, want %s",
 					spew.Sdump(gotPatches),

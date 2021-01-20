@@ -22,3 +22,7 @@ demos_push: demos_build
 
 demos_deploy: demos_push
 	cd cmd/cave-demos && fly deploy -v
+
+.PHONY: test
+test:
+	go test -cover ./...
