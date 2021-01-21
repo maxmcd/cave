@@ -48,7 +48,7 @@ func (cave *Cave) component(name string) (interface{}, error) {
 
 	// this is a bit ad-hoc. liveview has lots of metadata here. think on this
 	fmt.Fprintf(&buf, "<div cave-component=\"%s-%d\">", name, rand.Uint64())
-	if err := renderOnce(cmp(), &buf); err != nil {
+	if _, err := renderOnce(cmp(), &buf); err != nil {
 		return nil, err
 	}
 	fmt.Fprintf(&buf, "</div>")

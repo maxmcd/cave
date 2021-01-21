@@ -30,9 +30,13 @@ export class WebsocketHandler {
         componentIDs.push(val);
       }
     }
-    this.websocket.send(
+    this.send(
       new ClientMessage(MessageType.Init, componentIDs).serialize()
     );
+  }
+  send(data: any): void {
+    console.log("sending msg to server", data)
+    return this.websocket.send(data)
   }
   onmessage(e: MessageEvent): any {
     console.log(e.data);
@@ -44,6 +48,7 @@ export class WebsocketHandler {
       let node = document.querySelector("[cave-component]")?.cloneNode(true);
       diff.apply(node, patches);
       morphdom(document.querySelector("[cave-component]"), node);
+      this.addEventListeners()
     }
     if (msg.event === MessageType.Error) {
       throw new Error("Server error: " + msg.data[0]);
@@ -64,6 +69,7 @@ export class WebsocketHandler {
 
   caveSubmitListener(name: string): (e: Event) => void {
     return (e) => {
+      console.log("got submit", e)
       let formElement = <HTMLFormElement>e.currentTarget;
       let componentID = formElement
         .closest("[cave-component]")
@@ -73,8 +79,11 @@ export class WebsocketHandler {
         return;
       }
       e.preventDefault();
-      let formMessage = new SubmitMessage(componentID, name, formElement);
-      this.websocket.send(formMessage.serialize());
+      let subcomponentID = formElement
+      .closest("[cave-subcomponent]")
+      ?.getAttribute("cave-subcomponent") || undefined;
+      let formMessage = new SubmitMessage(componentID, name, formElement, subcomponentID);
+      this.send(formMessage.serialize());
     };
   }
 }

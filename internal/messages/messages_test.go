@@ -12,7 +12,7 @@ import (
 func TestClientMessage_UnmarshalJSON(t *testing.T) {
 	type fields struct {
 		ComponentID    string
-		SubcomponentID string
+		SubcomponentID *int
 		Type           ClientType
 		Name           string
 		Data           []byte
@@ -20,6 +20,9 @@ func TestClientMessage_UnmarshalJSON(t *testing.T) {
 	type args struct {
 		data []byte
 	}
+
+	zero := 0
+
 	tests := []struct {
 		name        string
 		fields      fields
@@ -62,13 +65,13 @@ func TestClientMessage_UnmarshalJSON(t *testing.T) {
 		},
 		{
 			name: "componentID and name and subcomponentID",
-			args: args{data: []byte(`["init", [1,2], "main-1", "main", "thing"]`)},
+			args: args{data: []byte(`["init", [1,2], "main-1", "main", "0"]`)},
 			fields: fields{
 				Type:           ClientTypeInit,
 				Data:           []byte(`[1,2]`),
 				ComponentID:    "main-1",
 				Name:           "main",
-				SubcomponentID: "thing",
+				SubcomponentID: &zero,
 			},
 		},
 		{

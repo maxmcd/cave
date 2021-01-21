@@ -46,6 +46,20 @@ export class ClientMessage {
   }
 }
 
+export class SubmitMessage extends ClientMessage {
+  data: [string, Record<string, string>];
+  constructor(componentID: string, name: string, form: HTMLFormElement, subcomponentID?: string) {
+    let formData = new FormData(form);
+    let formDataMap: Record<string, string> = {};
+    formData.forEach((v, k) => {
+      // TODO: file support
+      formDataMap[k] = v.toString();
+    });
+    super(MessageType.Submit, [formDataMap], componentID, name, subcomponentID);
+  }
+}
+
+
 export class ServerMessage {
   componentID: string;
   event: string;
@@ -57,18 +71,5 @@ export class ServerMessage {
   }
   serialize(): string {
     return JSON.stringify([this.componentID, this.event, this.data]);
-  }
-}
-
-export class SubmitMessage extends ClientMessage {
-  data: [string, Record<string, string>];
-  constructor(componentID: string, name: string, form: HTMLFormElement) {
-    let formData = new FormData(form);
-    let formDataMap: Record<string, string> = {};
-    formData.forEach((v, k) => {
-      // TODO: file support
-      formDataMap[k] = v.toString();
-    });
-    super(MessageType.Submit, [formDataMap], componentID, name);
   }
 }

@@ -92,8 +92,8 @@ type Board struct {
 	board [7][6]CircleType
 }
 
-func (board *Board) OnClick(name string) {
-
+func (board *Board) OnSubmit(name string, form map[string]string) {
+	fmt.Println("BOARD ON SUBMIT", name, form)
 }
 
 func (board *Board) Render() string {
@@ -114,5 +114,6 @@ func (board *Board) Render() string {
 		sb.WriteString("</div>")
 	}
 	sb.WriteString("</div>")
+	sb.WriteString(`<form cave-submit=board><input type=submit></form>`)
 	return sb.String()
 }

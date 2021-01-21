@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -37,7 +38,7 @@ type websocketSession struct {
 }
 
 type componentRenderer struct {
-	r  Renderer
+	Renderer
 	id int
 }
 
@@ -49,6 +50,7 @@ type liveComponent struct {
 	// need to take an action from a server and direct it to the right subcomponent
 	// need to select an existing index for rendering
 	subcomponents map[uintptr]componentRenderer
+	idMap         map[int]uintptr
 	counter       int
 }
 
@@ -78,10 +80,11 @@ func (lc *liveComponent) renderFn(i interface{}) (interface{}, error) {
 	if !ok {
 		// if we don't, assign them an id and store them
 		cr = componentRenderer{
-			r:  renderer,
-			id: lc.counter,
+			Renderer: renderer,
+			id:       lc.counter,
 		}
 		lc.subcomponents[subcomponentAddr] = cr
+		lc.idMap[lc.counter] = subcomponentAddr
 		lc.counter++
 		// TODO: consider finalizer?
 	}
@@ -93,30 +96,28 @@ func (lc *liveComponent) renderFn(i interface{}) (interface{}, error) {
 	return buf.String(), nil
 }
 
-func renderOnce(r Renderer, w io.Writer) error {
+func renderOnce(r Renderer, w io.Writer) (*liveComponent, error) {
 	lc := liveComponent{
 		renderer:      r,
 		subcomponents: map[uintptr]componentRenderer{},
+		idMap:         map[int]uintptr{},
 	}
-	return lc.render(r, w)
+	return &lc, lc.render(r, w)
 }
 
 func newLiveComponent(r Renderer) (*liveComponent, error) {
-	ls := liveComponent{
-		renderer:      r,
-		subcomponents: map[uintptr]componentRenderer{},
-	}
 	var buf bytes.Buffer
-	if err := ls.render(r, &buf); err != nil {
+	lc, err := renderOnce(r, &buf)
+	if err != nil {
 		return nil, err
 	}
 	node, err := parseHTMLToNode(buf.String())
 	if err != nil {
 		return nil, err
 	}
-	ls.tree = node
-	// printNode(ls.tree, 0)
-	return &ls, nil
+	lc.tree = node
+	// printNode(lc.tree, 0)
+	return lc, nil
 }
 
 func (lc *liveComponent) diff() ([]Patch, error) {
@@ -218,11 +219,21 @@ func (wss *websocketSession) handleClientMessage(msg messages.ClientMessage) err
 			return err
 		}
 		ls, ok := wss.components[msg.ComponentID]
-		if ok {
-			fmt.Println(data)
+		if !ok {
+			return nil
+		}
+		fmt.Println(data)
+		if msg.SubcomponentID == nil {
 			ls.renderer.(OnSubmiter).OnSubmit(msg.Name, data[0])
+		} else {
+			ptr, ok := ls.idMap[*msg.SubcomponentID]
+			if !ok {
+				log.Fatalf("subcomponent id not found %q", *msg.SubcomponentID)
+			}
+			ls.subcomponents[ptr].Renderer.(OnSubmiter).OnSubmit(msg.Name, data[0])
 		}
 		return wss.reRenderComponent(msg.ComponentID)
+
 	}
 	return nil
 }

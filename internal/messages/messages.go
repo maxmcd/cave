@@ -3,6 +3,8 @@ package messages
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"strconv"
 )
 
 type ServerType string
@@ -70,7 +72,7 @@ type ClientMessage struct {
 	Data           []byte
 	ComponentID    string
 	Name           string
-	SubcomponentID string
+	SubcomponentID *int
 }
 
 func (cm *ClientMessage) UnmarshalJSON(data []byte) error {
@@ -99,8 +101,14 @@ func (cm *ClientMessage) UnmarshalJSON(data []byte) error {
 	if raw[4] == nil {
 		return nil
 	}
-	if err := json.Unmarshal(raw[4], &cm.SubcomponentID); err != nil {
+	var subcomponentID string
+	if err := json.Unmarshal(raw[4], &subcomponentID); err != nil {
 		return err
 	}
+	sID, err := strconv.Atoi(subcomponentID)
+	if err != nil {
+		return fmt.Errorf("subcomponentID of %q is not in the correct format", subcomponentID)
+	}
+	cm.SubcomponentID = &sID
 	return nil
 }

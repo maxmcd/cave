@@ -4,6 +4,9 @@
 run_to_do_example: generate
 	cd examples/to-do && go run .
 
+.PHONY: run_connect4_example
+run_connect4_example: generate
+	cd examples/connect4 && go run .
 
 .PHONY: ./cave-js/bundle.js
 ./cave-js/bundle.js:
