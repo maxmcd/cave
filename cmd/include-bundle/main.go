@@ -33,7 +33,7 @@ func run() (err error) {
 			continue
 		}
 		// replace dots with underscores
-		_, _ = out.Write([]byte(strings.ReplaceAll(f.Name(), ".", "_") + " = \""))
+		_, _ = out.Write([]byte(strings.ReplaceAll(f.Name(), ".", "") + " = \""))
 		f, err := os.Open(filepath.Join(caveJS, f.Name()))
 		if err != nil {
 			return err

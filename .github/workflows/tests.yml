@@ -1,0 +1,24 @@
+name: Tests
+on: push
+jobs:
+  test-js:
+    name: test-js
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "12"
+      - uses: nanasess/setup-chromedriver@master
+      - run: cd cave-js && npm install
+      - run: cd cave-js && make test
+  test-go:
+    name: test-go
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Run all tests
+        run: go test -v ./...
