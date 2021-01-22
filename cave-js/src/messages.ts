@@ -1,13 +1,14 @@
-export type WebsocketMessage = [string,  Array<any>, string];
+export type WebsocketMessage = [string, Array<any>, string];
 export enum MessageType {
   Patch = "p",
   Init = "init",
   Error = "error",
   Submit = "submit",
+  Click = "click",
 }
 
 export class ClientMessage {
-  type: MessageType
+  type: MessageType;
   data: Array<any>;
   componentID?: string;
   name?: string;
@@ -17,29 +18,29 @@ export class ClientMessage {
     data: Array<any>,
     componentID?: string,
     name?: string,
-    subcomponentID?: string,
+    subcomponentID?: string
   ) {
     this.type = type;
     this.data = data;
-    this.componentID  = componentID;
+    this.componentID = componentID;
     this.name = name;
     this.subcomponentID = subcomponentID;
   }
   prepare(): Array<any> {
-    let out: Array<any> = [this.type, this.data]
+    let out: Array<any> = [this.type, this.data];
     if (!this.componentID) {
-      return out
+      return out;
     }
-    out.push(this.componentID)
+    out.push(this.componentID);
     if (!this.name) {
-      return out
+      return out;
     }
-    out.push(this.name)
+    out.push(this.name);
     if (!this.subcomponentID) {
-      return out
+      return out;
     }
-    out.push(this.subcomponentID)
-    return out
+    out.push(this.subcomponentID);
+    return out;
   }
   serialize(): string {
     return JSON.stringify(this.prepare());
@@ -48,7 +49,12 @@ export class ClientMessage {
 
 export class SubmitMessage extends ClientMessage {
   data: [string, Record<string, string>];
-  constructor(componentID: string, name: string, form: HTMLFormElement, subcomponentID?: string) {
+  constructor(
+    componentID: string,
+    name: string,
+    form: HTMLFormElement,
+    subcomponentID?: string
+  ) {
     let formData = new FormData(form);
     let formDataMap: Record<string, string> = {};
     formData.forEach((v, k) => {
@@ -58,7 +64,6 @@ export class SubmitMessage extends ClientMessage {
     super(MessageType.Submit, [formDataMap], componentID, name, subcomponentID);
   }
 }
-
 
 export class ServerMessage {
   componentID: string;

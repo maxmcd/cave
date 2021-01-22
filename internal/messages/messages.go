@@ -18,6 +18,7 @@ type ClientType string
 
 const (
 	ClientTypeSubmit ClientType = "submit"
+	ClientTypeClick  ClientType = "click"
 	ClientTypeInit   ClientType = "init"
 )
 

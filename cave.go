@@ -18,6 +18,9 @@ type OnSubmiter interface {
 	OnSubmit(name string, form map[string]string)
 }
 
+type OnClicker interface {
+	OnClick(name string)
+}
 type Renderer interface {
 	Render() string
 }

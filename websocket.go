@@ -233,7 +233,21 @@ func (wss *websocketSession) handleClientMessage(msg messages.ClientMessage) err
 			ls.subcomponents[ptr].Renderer.(OnSubmiter).OnSubmit(msg.Name, data[0])
 		}
 		return wss.reRenderComponent(msg.ComponentID)
-
+	case messages.ClientTypeClick:
+		ls, ok := wss.components[msg.ComponentID]
+		if !ok {
+			return nil
+		}
+		if msg.SubcomponentID == nil {
+			ls.renderer.(OnClicker).OnClick(msg.Name)
+		} else {
+			ptr, ok := ls.idMap[*msg.SubcomponentID]
+			if !ok {
+				log.Fatalf("subcomponent id not found %q", *msg.SubcomponentID)
+			}
+			ls.subcomponents[ptr].Renderer.(OnClicker).OnClick(msg.Name)
+		}
+		return wss.reRenderComponent(msg.ComponentID)
 	}
 	return nil
 }
