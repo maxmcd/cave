@@ -17,7 +17,6 @@ import (
 type OnSubmiter interface {
 	OnSubmit(name string, form map[string]string)
 }
-
 type OnClicker interface {
 	OnClick(name string)
 }
@@ -25,12 +24,13 @@ type Renderer interface {
 	Render() string
 }
 
-// MAYBE
 type OnMounter interface {
-	OnMount(req *http.Request)
+	OnMount(Session)
 }
 
-type Form struct{}
+type Session interface {
+	Render()
+}
 
 type Cave struct {
 	template *template.Template

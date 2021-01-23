@@ -44,14 +44,40 @@ type componentRenderer struct {
 
 type liveComponent struct {
 	renderer Renderer
+	conn     *websocket.Conn
 	tree     *html.Node
-
+	session  Session
 	// need to check if we've seen the subcomponent before
 	// need to take an action from a server and direct it to the right subcomponent
 	// need to select an existing index for rendering
 	subcomponents map[uintptr]componentRenderer
 	idMap         map[int]uintptr
 	counter       int
+}
+
+func newLiveComponent(r Renderer, session Session) (*liveComponent, error) {
+	var buf bytes.Buffer
+	lc, err := renderOnce(r, &buf)
+	if err != nil {
+		return nil, err
+	}
+	node, err := parseHTMLToNode(buf.String())
+	if err != nil {
+		return nil, err
+	}
+	lc.tree = node
+	lc.session = session
+	// printNode(lc.tree, 0)
+	return lc, nil
+}
+
+func renderOnce(r Renderer, w io.Writer) (*liveComponent, error) {
+	lc := liveComponent{
+		renderer:      r,
+		subcomponents: map[uintptr]componentRenderer{},
+		idMap:         map[int]uintptr{},
+	}
+	return &lc, lc.render(r, w)
 }
 
 func (lc *liveComponent) render(renderer Renderer, w io.Writer) error {
@@ -96,30 +122,6 @@ func (lc *liveComponent) renderFn(i interface{}) (interface{}, error) {
 	return buf.String(), nil
 }
 
-func renderOnce(r Renderer, w io.Writer) (*liveComponent, error) {
-	lc := liveComponent{
-		renderer:      r,
-		subcomponents: map[uintptr]componentRenderer{},
-		idMap:         map[int]uintptr{},
-	}
-	return &lc, lc.render(r, w)
-}
-
-func newLiveComponent(r Renderer) (*liveComponent, error) {
-	var buf bytes.Buffer
-	lc, err := renderOnce(r, &buf)
-	if err != nil {
-		return nil, err
-	}
-	node, err := parseHTMLToNode(buf.String())
-	if err != nil {
-		return nil, err
-	}
-	lc.tree = node
-	// printNode(lc.tree, 0)
-	return lc, nil
-}
-
 func (lc *liveComponent) diff() ([]Patch, error) {
 	old := lc.tree
 	var buf bytes.Buffer
@@ -139,14 +141,15 @@ func (wss *websocketSession) sendError(err error) {
 	if err == nil {
 		return
 	}
+	spew.Dump(err)
 	msg := messages.ServerMessage{Type: messages.ServerTypeError, Data: []string{err.Error()}}
 	b, err := msg.Serialize()
 	if err != nil {
 		// TODO
 		panic(err)
 	}
-
 	// TODO: confirm this error is likely just a broken conn and nothing more we should be worried about
+	fmt.Println("sending error", string(b))
 	_ = wss.conn.WriteMessage(websocket.TextMessage, b)
 }
 
@@ -203,13 +206,15 @@ func (wss *websocketSession) handleClientMessage(msg messages.ClientMessage) err
 			}
 			renderer := rendererFunc()
 			var err error
-			wss.components[componentID], err = newLiveComponent(renderer)
+			var session Session = &scopedSession{wss: wss, componentID: componentID}
+			lc, err := newLiveComponent(renderer, session)
+			wss.components[componentID] = lc
 			if err != nil {
 				return err
 			}
 			onmounter, ok := renderer.(OnMounter)
 			if ok {
-				onmounter.OnMount(wss.req)
+				onmounter.OnMount(session)
 				return wss.reRenderComponent(componentID)
 			}
 		}
@@ -252,6 +257,17 @@ func (wss *websocketSession) handleClientMessage(msg messages.ClientMessage) err
 	return nil
 }
 
+type scopedSession struct {
+	wss         *websocketSession
+	componentID string
+}
+
+func (ss *scopedSession) Render() {
+	if err := ss.wss.reRenderComponent(ss.componentID); err != nil {
+		ss.wss.sendError(err)
+	}
+}
+
 func (wss *websocketSession) reRenderComponent(componentID string) error {
 	component, ok := wss.components[componentID]
 	if !ok {
@@ -274,5 +290,6 @@ func (wss *websocketSession) reRenderComponent(componentID string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("sending diff", string(b))
 	return wss.conn.WriteMessage(websocket.TextMessage, b)
 }

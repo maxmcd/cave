@@ -82,7 +82,7 @@ func TestCaveBasic(t *testing.T) {
 
 func TestCaveDiff(t *testing.T) {
 	tc := NewTestComponent()
-	ls, err := newLiveComponent(tc)
+	ls, err := newLiveComponent(tc, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
