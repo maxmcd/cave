@@ -47,7 +47,7 @@ func (sm ServerMessage) Serialize() ([]byte, error) {
 	}
 
 	if sm.Data == nil {
-		return nil, nil
+		return marshal(onWire)
 	}
 	onWire = append(onWire, nil)
 	// we must use our internal marshal so that html is not escaped
@@ -57,7 +57,7 @@ func (sm ServerMessage) Serialize() ([]byte, error) {
 	}
 
 	if sm.ComponentID == "" {
-		return nil, nil
+		return marshal(onWire)
 	}
 	onWire = append(onWire, nil)
 	onWire[2], err = json.Marshal(sm.ComponentID)
