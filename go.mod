@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/davecgh/go-spew v1.1.1
-	github.com/gin-gonic/gin v1.6.3
+	github.com/gin-gonic/gin v1.7.7
 	github.com/golang/protobuf v1.3.5 // indirect
 	github.com/gorilla/websocket v1.4.2
 	github.com/kr/pretty v0.2.0 // indirect
